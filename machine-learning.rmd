@@ -1,0 +1,123 @@
+---
+title: "Practical Machine Learning"
+author: "Subramanian L"
+date: "25 December 2015"
+output: html_document
+---
+
+
+Overview
+---------
+This report uses data captured Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement ??? a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Data Collected
+----------------
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+Expected Output
+----------------
+Prediction model to classifiy the "Classe" of the training data on how the participants did the exercise.
+20 test cases are provide to predict the outcome levels (A,B,C,D or E)
+
+Prediction Algorithm
+-----------------------
+
+1. Data Cleanup
+----------------------------------------------
+pml-training and testing csv's are downloaded and loaded by read.csv from local
+folder 
+
+``` {r echo= TRUE}
+library(caret)
+library(ggplot2)
+train_data <- read.csv("~/programming/r-prog/machinelearning/pml-training.csv",na.strings=c("", "NA", "#DIV/0!"))
+
+test_data <- read.csv("~/programming/r-prog/machinelearning/pml-testing.csv",na.strings=c("", "NA", "#DIV/0!"))
+
+
+```
+Partitioning Train data into two parts
+1. Training
+2. Validation (Cross-validation) 
+
+```{r echo=TRUE}
+set.seed(54321)
+train_part <- createDataPartition(train_data$classe, p = 0.8, list = FALSE)
+training <- train_data [train_part, ]
+validation <- train_data [-train_part, ]
+```
+2. Extract features
+-----------------------------
+clear closer to zero values
+
+``` {r echo= TRUE}
+#remove closer to zero values
+ closer_to_zero <- nearZeroVar(training)
+ training <- training[,-closer_to_zero]
+
+#remove items which has null values
+#also remove username, timestamp, window which has no bearing as predictors
+
+cntlength <- sapply(training, function(x) {
+    sum(!(is.na(x) | x == ""))
+})
+nullcol <- names(cntlength[cntlength < 0.6 * length(training$classe)])
+unwanted_col <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+    "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(unwanted_col, nullcol)
+training <- training[, !names(training) %in% excludecols]
+
+#Traing models using randomForest
+library(randomForest)
+forest_Model <- randomForest(classe ~ ., data = training , importance = TRUE, ntrees = 10)
+```
+
+3. Cross validate
+------------------
+Use the remaining train subset to cross validate the training
+Print the prediction against actual value in confusion Matrix
+``` {r echo= TRUE}
+predict_test <- predict(forest_Model,training)
+print(confusionMatrix(predict_test,training$classe))
+
+predict_validation<- predict(forest_Model, validation)
+print(confusionMatrix(predict_validation, validation$classe))
+```
+We get high accuracy using Random Forest training methods.
+
+4. Final Test
+--------------
+Test Data (20 rows) is fed to model and outcome is printed
+``` {r echo = TRUE }
+predict_test <- predict(forest_Model, test_data)
+predict_test
+```
+
+Write the results of levels of classe outcome as files using the given
+method
+```` {r echo = TRUE }
+answers <- as.vector(predict_test)
+
+pml_write_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+pml_write_files(answers)
+```
+
+
+
+
